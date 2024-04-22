@@ -1,0 +1,151 @@
+coba tambahkan kodingan di bagian last_predicted_price, jika harga dibawah 30000 maka sangat cocok untuk membeli cryptocurrrency, tetapi jika harga cryptocurrency diatas 60000 maka crypto harus dijual
+
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import datetime
+
+
+st.set_page_config(
+    page_title="Website Prediksi Harga Cryptocurrency",
+    page_icon=":moneybag:",
+)
+st.title("Website Prediksi Harga Cryptocurrency")
+
+# Fungsi untuk membaca data berdasarkan pilihan user
+def read_prophet_data(selected_crypto, selected_interval):
+    folder_path_eth_prophet = "./eth prophet/"
+    folder_path_btc_prophet = "./btc prophet/"
+    
+    if selected_crypto == "Ethereum":
+        folder_path = folder_path_eth_prophet
+    elif selected_crypto == "Bitcoin":
+        folder_path = folder_path_btc_prophet
+    else:
+        st.warning("Pilihan crypto belum diimplementasikan.")
+        return None
+
+    if selected_interval == "Bulanan":
+        file_path = folder_path + "combined_data1.xlsx"
+    elif selected_interval == "Tahunan":
+        file_path = folder_path + "combined_data2.xlsx"
+    elif selected_interval == "Harian":
+        file_path = folder_path + "combined_data3.xlsx"
+    else:
+        st.warning("Pilihan interval belum diimplementasikan.")
+        return None
+
+    df = pd.read_excel(file_path)
+
+    # Menghilangkan informasi jam pada kolom 'Date'
+    df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
+    
+    # Filter data berdasarkan tanggal setelah 2023-12-31
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df[df['Date'] > pd.to_datetime('2023-12-31')]
+    
+    return df
+
+# Halaman utama untuk Prophet
+def prophet_page():
+
+    # Pilihan Crypto
+    selected_crypto = st.selectbox("Pilih Cryptocurrency:", ["Ethereum", "Bitcoin"])
+
+    # Pilihan Interval
+    selected_interval = st.selectbox("Pilih Interval Waktu:", ["Bulanan", "Tahunan", "Harian"])
+
+    # Membaca data berdasarkan pilihan user
+    df = read_prophet_data(selected_crypto, selected_interval)
+
+    if df is not None:
+        # Input dari user
+        if selected_interval == "Bulanan":
+            
+            input_value = st.text_input("Masukkan bulan dan tahun yang ingin dilihat (Format: YYYY-MM):")
+            
+            # Validasi input bulanan
+            if input_value and pd.to_datetime(input_value) > pd.to_datetime('2024-12-31'):
+                st.warning(f"Tidak ada data untuk {selected_interval} - {input_value} dalam dataframe.")
+                return
+            
+        elif selected_interval == "Tahunan":
+            input_value = st.text_input("Masukkan tahun yang ingin dilihat (Format: YYYY):")
+        elif selected_interval == "Harian":
+            input_value = st.text_input("Masukkan tanggal yang ingin dilihat (Format: YYYY-MM-DD):")
+            # Validasi input bulanan
+            if input_value and pd.to_datetime(input_value) > pd.to_datetime('2024-12-30'):
+                st.warning(f"Tidak ada data untuk {selected_interval} - {input_value} dalam dataframe.")
+                return
+        else:
+            input_value = None
+
+        # Menampilkan grafik berdasarkan input user
+        if st.button("Apply"):
+            if input_value:
+                # Menyaring dataframe sesuai dengan interval waktu yang dipilih
+                if selected_interval == "Bulanan":
+                    selected_rows = df[df['Date'].dt.to_period('M') <= pd.Period(input_value)]
+                elif selected_interval == "Tahunan":
+                    selected_rows = df[df['Date'].dt.year <= int(input_value)]
+                elif selected_interval == "Harian":
+                    selected_rows = df[df['Date'] <= pd.to_datetime(input_value)]
+                else:
+                    st.warning("Pilihan interval belum diimplementasikan.")
+                    return
+                
+                # Menampilkan grafik
+                plot_graph(selected_rows, selected_interval, pd.to_datetime(input_value))
+
+# Fungsi untuk menampilkan grafik
+def plot_graph(df, interval, input_value):
+    try:
+        if not df.empty:
+            # Mengatur ukuran grafik
+            plt.figure(figsize=(10, 6))
+
+            # Menggambar garis untuk Actual_USD setelah tanggal '2023-12-31'
+            df_after_2023 = df[df['Date'] > pd.to_datetime('2023-12-31')]
+            plt.plot(df_after_2023['Date'], df_after_2023['Actual_USD'], label='Actual USD (After 2023-12-31)', marker='o')
+
+            # Menggambar garis untuk Predicted_USD
+            plt.plot(df['Date'], df['Predicted_USD'], label='Predicted USD', marker='o')
+
+            # Menambahkan label dan judul
+            plt.xlabel('Date')
+            plt.ylabel('USD Value')
+            plt.title(f'Actual vs Predicted USD Value Over Time ({interval} - {input_value})')
+
+            # Menambahkan legenda
+            plt.legend()
+
+            # Menyaring tanggal jika interval harian
+            if interval == "Harian":
+                plt.xlim(df['Date'].min(), pd.to_datetime(input_value))
+                
+                # Menampilkan prediksi harga di tanggal tersebut
+                last_predicted_price = df[df['Date'] == pd.to_datetime(input_value)]['Predicted_USD'].iloc[0]
+                st.write(f"Prediksi harga pada {input_value}: {last_predicted_price} USD")
+                
+            else:
+                # Menyaring tanggal hingga tahun yang diminta
+                plt.xlim(df['Date'].min(), df['Date'].max())
+                
+                # Menampilkan prediksi harga di tanggal tersebut
+                last_price_date = df[df['Date'] == df['Date'].max()]['Date'].iloc[0]
+                last_predicted_price = df[df['Date'] == df['Date'].max()]['Predicted_USD'].iloc[0]
+                
+                st.write(f"Prediksi harga pada {last_price_date}: {last_predicted_price} USD")
+            # Menampilkan grafik
+            st.pyplot(plt)
+        else:
+            st.warning(f"Tidak ada data untuk {interval} - {input_value} dalam dataframe.")
+    except ValueError as e:
+        st.warning(f"Error: {e}")
+
+# Menjalankan aplikasi
+if __name__ == "__main__":
+    prophet_page()
+
+
+    
