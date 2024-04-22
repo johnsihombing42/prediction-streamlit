@@ -1,1 +1,9 @@
-matplotlib==3.4.3
+matplotlib
+streamlit
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+plotly
+
